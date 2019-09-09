@@ -63,41 +63,45 @@ class TwitterController extends \yii\web\Controller
     public function actionFeed()
     {
         $model = new TwitterFeedForm();
-        $model->id = Yii::$app->request->get('id');
-        $model->secret = Yii::$app->request->get('secret');
-        if($model->validate() && (Uuid::findOne(['key' => $model->id]) == null)){
-            $uuid = new Uuid(['key' => $model->id]);
-            $uuid->save();
-            if(sha1($model->id) == $model->secret){
-                try {
-                    $data = array();
-                    foreach (Username::find()->all() as $customer) {
-                        $connection = new TwitterOAuth($this->consumerkey, $this->consumersecret, $this->accesstoken, $this->accesstokensecret);
-                        $tweets = $connection->get("statuses/user_timeline", ['screen_name' => $customer->username, 'count' => 1]);
-                        $tags = array();
-                        if ($customer->username == null) {
-                            array_push($data, array('user' => $customer->username, 'tweet' => '', 'hashtag' => $tags));
-                        } else {
-                            $array = json_decode(json_encode($tweets[0]), true);
-                            if ($array['entities']['hashtags'] != null) {
-                                foreach ($array['entities']['hashtags'] as $tag) {
-                                    array_push($tags, $tag["text"]);
+        if( Yii::$app->request->get('id') != null && Yii::$app->request->get('secret') != null) {
+            $model->id = Yii::$app->request->get('id');
+            $model->secret = Yii::$app->request->get('secret');
+            if ($model->validate() && (Uuid::findOne(['key' => $model->id]) == null)) {
+                $uuid = new Uuid(['key' => $model->id]);
+                $uuid->save();
+                if (sha1($model->id) == $model->secret) {
+                    try {
+                        $data = array();
+                        foreach (Username::find()->all() as $customer) {
+                            $connection = new TwitterOAuth($this->consumerkey, $this->consumersecret, $this->accesstoken, $this->accesstokensecret);
+                            $tweets = $connection->get("statuses/user_timeline", ['screen_name' => $customer->username, 'count' => 1]);
+                            $tags = array();
+                            if ($customer->username == null) {
+                                array_push($data, array('user' => $customer->username, 'tweet' => '', 'hashtag' => $tags));
+                            } else {
+                                $array = json_decode(json_encode($tweets[0]), true);
+                                if ($array['entities']['hashtags'] != null) {
+                                    foreach ($array['entities']['hashtags'] as $tag) {
+                                        array_push($tags, $tag["text"]);
+                                    }
                                 }
+                                array_push($data, array('user' => $customer->username, 'tweet' => $array['text'], 'hashtag' => $tags));
                             }
-                            array_push($data, array('user' => $customer->username, 'tweet' => $array['text'], 'hashtag' => $tags));
                         }
+                        Yii::$app->response->data = (array('feed' => $data));
+                        return;
+                    } catch (Exception $e) {
+
                     }
-                    Yii::$app->response->data = (array('feed' => $data));
-                    return;
-                } catch (Exception $e){
-                    Yii::$app->response->statusCode = 500;
-                    return array('error' => 'internal error');
+                } else {
+                    Yii::$app->response->statusCode = 401;
+                    return array('error' => 'access denied');
                 }
             } else {
-                Yii::$app->response->statusCode = 401;
-                return array('error' => 'access denied');
+                Yii::$app->response->statusCode = 500;
+                return array('error' => 'internal error');
             }
-        } else {
+        }else{
             Yii::$app->response->statusCode = 400;
             return array('error' => 'missing parameter');
         }
@@ -106,25 +110,30 @@ class TwitterController extends \yii\web\Controller
     public function actionRemove()
     {
         $model = new TwitterForm();
-        $model->id = Yii::$app->request->get('id');
-        $model->username = Yii::$app->request->get('username');
-        $model->secret = Yii::$app->request->get('secret');
-        if($model->validate() && (Uuid::findOne(['key' => $model->id]) == null)){
-            $uuid = new Uuid(['key' => $model->id]);
-            $uuid->save();
-            if(sha1($model->id.$model->username) == $model->secret){
-                $tmp =  Username::findOne(['username' => $model->username]);
-                if($tmp!=null) {
-                    Username::deleteAll(['username' => $model->username]);
-                    Yii::$app->response->content = '';
-                    return;
-                } else{
-                    Yii::$app->response->statusCode = 500;
-                    return array('error' => 'internal error');
+        if( Yii::$app->request->get('id') != null && Yii::$app->request->get('username') != null && Yii::$app->request->get('secret') != null) {
+            $model->id = Yii::$app->request->get('id');
+            $model->username = Yii::$app->request->get('username');
+            $model->secret = Yii::$app->request->get('secret');
+            if ($model->validate() && (Uuid::findOne(['key' => $model->id]) == null)) {
+                $uuid = new Uuid(['key' => $model->id]);
+                $uuid->save();
+                if (sha1($model->id . $model->username) == $model->secret) {
+                    $tmp = Username::findOne(['username' => $model->username]);
+                    if ($tmp != null) {
+                        Username::deleteAll(['username' => $model->username]);
+                        Yii::$app->response->content = '';
+                        return;
+                    } else {
+                        Yii::$app->response->statusCode = 500;
+                        return array('error' => 'internal error');
+                    }
+                } else {
+                    Yii::$app->response->statusCode = 401;
+                    return array('error' => 'access denied');
                 }
             } else {
-                Yii::$app->response->statusCode = 401;
-                return array('error' => 'access denied');
+                Yii::$app->response->statusCode = 500;
+                return array('error' => 'internal error');
             }
         }else{
             Yii::$app->response->statusCode = 400;
